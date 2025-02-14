@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,11 +39,11 @@ const Molds = () => {
   });
   const { toast } = useToast();
 
-  // Simulated customers data - this would come from your customer state/API
-  const customers = [
+  // Get customers from state
+  const [customers] = useState([
     { id: "1", name: "Cliente Exemplo 1" },
     { id: "2", name: "Cliente Exemplo 2" },
-  ];
+  ]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
