@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,32 +19,97 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+interface Customer {
+  id: string;
+  code: string;
+  name: string;
+}
 
 interface Mold {
   id: string;
   code: string;
   description: string;
-  customerId: string;
-  customerName: string;
+  customer_id: string;
   image: string;
 }
 
 const Molds = () => {
-  const [molds, setMolds] = useState<Mold[]>([]);
   const [search, setSearch] = useState("");
   const [newMold, setNewMold] = useState({
     code: "",
     description: "",
-    customerId: "",
+    customer_id: "",
     image: "",
   });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Get customers from state
-  const [customers] = useState([
-    { id: "1", name: "Cliente Exemplo 1" },
-    { id: "2", name: "Cliente Exemplo 2" },
-  ]);
+  // Fetch customers
+  const { data: customers = [] } = useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch molds
+  const { data: molds = [] } = useQuery({
+    queryKey: ['molds'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('molds')
+        .select(`
+          *,
+          customers (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data.map((mold) => ({
+        ...mold,
+        customerName: mold.customers.name,
+      }));
+    },
+  });
+
+  // Create mold mutation
+  const createMold = useMutation({
+    mutationFn: async (mold: Omit<Mold, 'id'>) => {
+      const { data, error } = await supabase
+        .from('molds')
+        .insert([mold])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['molds'] });
+      toast({
+        title: "Sucesso",
+        description: "Molde cadastrado com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,7 +123,7 @@ const Molds = () => {
   };
 
   const handleCreate = () => {
-    if (!newMold.code || !newMold.description || !newMold.customerId) {
+    if (!newMold.code || !newMold.description || !newMold.customer_id) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos",
@@ -66,25 +132,12 @@ const Molds = () => {
       return;
     }
 
-    const customer = customers.find((c) => c.id === newMold.customerId);
-    if (!customer) return;
-
-    const mold = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newMold,
-      customerName: customer.name,
-    };
-
-    setMolds([...molds, mold]);
+    createMold.mutate(newMold);
     setNewMold({
       code: "",
       description: "",
-      customerId: "",
+      customer_id: "",
       image: "",
-    });
-    toast({
-      title: "Sucesso",
-      description: "Molde cadastrado com sucesso",
     });
   };
 
@@ -135,9 +188,9 @@ const Molds = () => {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Cliente</label>
                   <Select
-                    value={newMold.customerId}
+                    value={newMold.customer_id}
                     onValueChange={(value) =>
-                      setNewMold({ ...newMold, customerId: value })
+                      setNewMold({ ...newMold, customer_id: value })
                     }
                   >
                     <SelectTrigger>
@@ -177,8 +230,12 @@ const Molds = () => {
                     )}
                   </div>
                 </div>
-                <Button onClick={handleCreate} className="w-full">
-                  Cadastrar Molde
+                <Button 
+                  onClick={handleCreate} 
+                  className="w-full"
+                  disabled={createMold.isPending}
+                >
+                  {createMold.isPending ? "Cadastrando..." : "Cadastrar Molde"}
                 </Button>
               </div>
             </DialogContent>

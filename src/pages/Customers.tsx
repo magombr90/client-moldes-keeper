@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusCircle, Search, UserPlus, ArrowRight } from "lucide-react";
@@ -17,6 +17,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { supabase } from "@/lib/supabase";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Customer {
   id: string;
@@ -28,29 +30,76 @@ interface Mold {
   id: string;
   code: string;
   description: string;
-  customerId: string;
-  customerName: string;
+  customer_id: string;
   image: string;
 }
 
 const Customers = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [newCustomer, setNewCustomer] = useState({ code: "", name: "" });
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Simulated molds data - this would come from your molds state/API
-  const [molds] = useState<Mold[]>([
-    {
-      id: "1",
-      code: "M001",
-      description: "Molde de Exemplo",
-      customerId: "123",
-      customerName: "Cliente Teste",
-      image: "",
+  // Fetch customers
+  const { data: customers = [] } = useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
     },
-  ]);
+  });
+
+  // Fetch molds for selected customer
+  const { data: customerMolds = [] } = useQuery({
+    queryKey: ['molds', selectedCustomer?.id],
+    queryFn: async () => {
+      if (!selectedCustomer?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('molds')
+        .select('*')
+        .eq('customer_id', selectedCustomer.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedCustomer?.id,
+  });
+
+  // Create customer mutation
+  const createCustomer = useMutation({
+    mutationFn: async (customer: { code: string; name: string }) => {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert([customer])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({
+        title: "Sucesso",
+        description: "Cliente cadastrado com sucesso",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleCreate = () => {
     if (!newCustomer.code || !newCustomer.name) {
@@ -62,27 +111,14 @@ const Customers = () => {
       return;
     }
 
-    const customer = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newCustomer,
-    };
-
-    setCustomers([...customers, customer]);
+    createCustomer.mutate(newCustomer);
     setNewCustomer({ code: "", name: "" });
-    toast({
-      title: "Sucesso",
-      description: "Cliente cadastrado com sucesso",
-    });
   };
 
   const filteredCustomers = customers.filter(
     (customer) =>
       customer.name.toLowerCase().includes(search.toLowerCase()) ||
       customer.code.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const customerMolds = molds.filter(
-    (mold) => mold.customerId === selectedCustomer?.id
   );
 
   return (
@@ -122,9 +158,13 @@ const Customers = () => {
                     placeholder="Digite o nome do cliente"
                   />
                 </div>
-                <Button onClick={handleCreate} className="w-full">
+                <Button 
+                  onClick={handleCreate} 
+                  className="w-full"
+                  disabled={createCustomer.isPending}
+                >
                   <PlusCircle className="h-5 w-5 mr-2" />
-                  Cadastrar Cliente
+                  {createCustomer.isPending ? "Cadastrando..." : "Cadastrar Cliente"}
                 </Button>
               </div>
             </DialogContent>
