@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +35,7 @@ interface Mold {
 
 const Customers = () => {
   const [search, setSearch] = useState("");
-  const [newCustomer, setNewCustomer] = useState({ code: "", name: "" });
+  const [newCustomer, setNewCustomer] = useState({ name: "" });
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -75,7 +74,7 @@ const Customers = () => {
 
   // Create customer mutation
   const createCustomer = useMutation({
-    mutationFn: async (customer: { code: string; name: string }) => {
+    mutationFn: async (customer: { name: string }) => {
       const { data, error } = await supabase
         .from('customers')
         .insert([customer])
@@ -102,17 +101,17 @@ const Customers = () => {
   });
 
   const handleCreate = () => {
-    if (!newCustomer.code || !newCustomer.name) {
+    if (!newCustomer.name) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos",
+        description: "Preencha o nome do cliente",
         variant: "destructive",
       });
       return;
     }
 
     createCustomer.mutate(newCustomer);
-    setNewCustomer({ code: "", name: "" });
+    setNewCustomer({ name: "" });
   };
 
   const filteredCustomers = customers.filter(
@@ -138,16 +137,6 @@ const Customers = () => {
                 <DialogTitle>Novo Cliente</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Código</label>
-                  <Input
-                    value={newCustomer.code}
-                    onChange={(e) =>
-                      setNewCustomer({ ...newCustomer, code: e.target.value })
-                    }
-                    placeholder="Digite o código do cliente"
-                  />
-                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Nome</label>
                   <Input
