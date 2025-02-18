@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Upload } from "lucide-react";
+import { PlusCircle, Search, Upload, Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +44,7 @@ interface Mold {
   description: string;
   customer_id: string;
   image: string;
+  customerName?: string;
 }
 
 const Molds = () => {
@@ -44,6 +55,10 @@ const Molds = () => {
     customer_id: "",
     image: "",
   });
+  const [editingMold, setEditingMold] = useState<Mold | null>(null);
+  const [deletingMold, setDeletingMold] = useState<Mold | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -101,6 +116,7 @@ const Molds = () => {
         title: "Sucesso",
         description: "Molde cadastrado com sucesso",
       });
+      setIsCreateOpen(false);
     },
     onError: (error) => {
       toast({
@@ -111,12 +127,81 @@ const Molds = () => {
     },
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Update mold mutation
+  const updateMold = useMutation({
+    mutationFn: async (mold: Mold) => {
+      const { data, error } = await supabase
+        .from('molds')
+        .update({
+          code: mold.code,
+          description: mold.description,
+          customer_id: mold.customer_id,
+          image: mold.image,
+        })
+        .eq('id', mold.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['molds'] });
+      toast({
+        title: "Sucesso",
+        description: "Molde atualizado com sucesso",
+      });
+      setIsEditOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete mold mutation
+  const deleteMold = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('molds')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['molds'] });
+      toast({
+        title: "Sucesso",
+        description: "Molde excluído com sucesso",
+      });
+      setDeletingMold(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'new' | 'edit') => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setNewMold({ ...newMold, image: reader.result as string });
+        if (target === 'new') {
+          setNewMold({ ...newMold, image: reader.result as string });
+        } else {
+          setEditingMold(editingMold ? 
+            { ...editingMold, image: reader.result as string } : 
+            null
+          );
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -126,7 +211,7 @@ const Molds = () => {
     if (!newMold.code || !newMold.description || !newMold.customer_id) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos",
+        description: "Preencha todos os campos obrigatórios",
         variant: "destructive",
       });
       return;
@@ -141,11 +226,29 @@ const Molds = () => {
     });
   };
 
+  const handleEdit = () => {
+    if (!editingMold || !editingMold.code || !editingMold.description || !editingMold.customer_id) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateMold.mutate(editingMold);
+  };
+
+  const handleDelete = () => {
+    if (!deletingMold) return;
+    deleteMold.mutate(deletingMold.id);
+  };
+
   const filteredMolds = molds.filter(
     (mold) =>
       mold.code.toLowerCase().includes(search.toLowerCase()) ||
       mold.description.toLowerCase().includes(search.toLowerCase()) ||
-      mold.customerName.toLowerCase().includes(search.toLowerCase())
+      mold.customerName?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -153,7 +256,7 @@ const Molds = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Moldes</h1>
-          <Dialog>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center space-x-2">
                 <PlusCircle className="h-5 w-5" />
@@ -224,7 +327,7 @@ const Molds = () => {
                           type="file"
                           className="hidden"
                           accept="image/*"
-                          onChange={handleImageUpload}
+                          onChange={(e) => handleImageUpload(e, 'new')}
                         />
                       </label>
                     )}
@@ -269,13 +372,36 @@ const Molds = () => {
                   />
                 )}
                 <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">
-                    Código: {mold.code}
-                  </p>
-                  <h3 className="text-lg font-semibold mb-1">{mold.description}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Cliente: {mold.customerName}
-                  </p>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Código: {mold.code}
+                      </p>
+                      <h3 className="text-lg font-semibold mb-1">{mold.description}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Cliente: {mold.customerName}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingMold(mold);
+                          setIsEditOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeletingMold(mold)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -287,8 +413,85 @@ const Molds = () => {
           )}
         </div>
       </div>
-    </div>
-  );
-};
 
-export default Molds;
+      {/* Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Molde</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Código</label>
+              <Input
+                value={editingMold?.code || ""}
+                onChange={(e) =>
+                  setEditingMold(
+                    editingMold ? 
+                    { ...editingMold, code: e.target.value } : 
+                    null
+                  )
+                }
+                placeholder="Digite o código do molde"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Descrição</label>
+              <Textarea
+                value={editingMold?.description || ""}
+                onChange={(e) =>
+                  setEditingMold(
+                    editingMold ? 
+                    { ...editingMold, description: e.target.value } : 
+                    null
+                  )
+                }
+                placeholder="Digite a descrição do molde"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Cliente</label>
+              <Select
+                value={editingMold?.customer_id || ""}
+                onValueChange={(value) =>
+                  setEditingMold(
+                    editingMold ? 
+                    { ...editingMold, customer_id: value } : 
+                    null
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Foto</label>
+              <div className="flex items-center justify-center border-2 border-dashed rounded-lg p-4">
+                {editingMold?.image ? (
+                  <img
+                    src={editingMold.image}
+                    alt="Preview"
+                    className="max-h-40 object-contain"
+                  />
+                ) : (
+                  <label className="flex flex-col items-center cursor-pointer">
+                    <Upload className="h-12 w-12 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      Clique para fazer upload
+                    </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'edit')}
+                    />
+                  </label>

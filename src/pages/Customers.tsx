@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, UserPlus, ArrowRight } from "lucide-react";
+import { PlusCircle, Search, UserPlus, ArrowRight, Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Sheet,
@@ -37,6 +48,10 @@ const Customers = () => {
   const [search, setSearch] = useState("");
   const [newCustomer, setNewCustomer] = useState({ name: "" });
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -90,6 +105,64 @@ const Customers = () => {
         title: "Sucesso",
         description: "Cliente cadastrado com sucesso",
       });
+      setIsCreateOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update customer mutation
+  const updateCustomer = useMutation({
+    mutationFn: async (customer: Customer) => {
+      const { data, error } = await supabase
+        .from('customers')
+        .update({ name: customer.name })
+        .eq('id', customer.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({
+        title: "Sucesso",
+        description: "Cliente atualizado com sucesso",
+      });
+      setIsEditOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete customer mutation
+  const deleteCustomer = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({
+        title: "Sucesso",
+        description: "Cliente excluído com sucesso",
+      });
+      setDeletingCustomer(null);
     },
     onError: (error) => {
       toast({
@@ -111,7 +184,24 @@ const Customers = () => {
     }
 
     createCustomer.mutate(newCustomer);
-    setNewCustomer({ name: "" });
+  };
+
+  const handleEdit = () => {
+    if (!editingCustomer || !editingCustomer.name) {
+      toast({
+        title: "Erro",
+        description: "Preencha o nome do cliente",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateCustomer.mutate(editingCustomer);
+  };
+
+  const handleDelete = () => {
+    if (!deletingCustomer) return;
+    deleteCustomer.mutate(deletingCustomer.id);
   };
 
   const filteredCustomers = customers.filter(
@@ -125,7 +215,7 @@ const Customers = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Clientes</h1>
-          <Dialog>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center space-x-2">
                 <UserPlus className="h-5 w-5" />
@@ -176,17 +266,41 @@ const Customers = () => {
           {filteredCustomers.map((customer) => (
             <div
               key={customer.id}
-              className="p-4 glass rounded-lg hover-scale cursor-pointer"
-              onClick={() => setSelectedCustomer(customer)}
+              className="p-4 glass rounded-lg hover-scale"
             >
               <div className="flex justify-between items-center">
-                <div>
+                <div className="cursor-pointer flex-1" onClick={() => setSelectedCustomer(customer)}>
                   <p className="text-sm text-muted-foreground">
                     Código: {customer.code}
                   </p>
                   <h3 className="text-lg font-semibold">{customer.name}</h3>
                 </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditingCustomer(customer);
+                      setIsEditOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeletingCustomer(customer)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSelectedCustomer(customer)}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -198,6 +312,61 @@ const Customers = () => {
         </div>
       </div>
 
+      {/* Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nome</label>
+              <Input
+                value={editingCustomer?.name || ""}
+                onChange={(e) =>
+                  setEditingCustomer(
+                    editingCustomer ? 
+                    { ...editingCustomer, name: e.target.value } : 
+                    null
+                  )
+                }
+                placeholder="Digite o nome do cliente"
+              />
+            </div>
+            <Button 
+              onClick={handleEdit} 
+              className="w-full"
+              disabled={updateCustomer.isPending}
+            >
+              {updateCustomer.isPending ? "Atualizando..." : "Atualizar Cliente"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Alert */}
+      <AlertDialog open={!!deletingCustomer} onOpenChange={() => setDeletingCustomer(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o cliente 
+              {deletingCustomer?.name && ` "${deletingCustomer.name}"`} e todos os seus dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteCustomer.isPending ? "Excluindo..." : "Excluir Cliente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* View Molds Sheet */}
       <Sheet open={!!selectedCustomer} onOpenChange={() => setSelectedCustomer(null)}>
         <SheetContent className="w-full sm:max-w-xl">
           <SheetHeader>
