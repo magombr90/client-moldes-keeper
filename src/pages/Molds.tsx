@@ -495,3 +495,43 @@ const Molds = () => {
                       onChange={(e) => handleImageUpload(e, 'edit')}
                     />
                   </label>
+                )}
+              </div>
+            </div>
+            <Button 
+              onClick={handleEdit} 
+              className="w-full"
+              disabled={updateMold.isPending}
+            >
+              {updateMold.isPending ? "Atualizando..." : "Atualizar Molde"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Alert */}
+      <AlertDialog open={!!deletingMold} onOpenChange={() => setDeletingMold(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o molde
+              {deletingMold?.code && ` "${deletingMold.code}"`} e todos os seus dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteMold.isPending ? "Excluindo..." : "Excluir Molde"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
+export default Molds;
