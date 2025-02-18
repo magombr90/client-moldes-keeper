@@ -59,12 +59,17 @@ const Customers = () => {
   const { data: customers = [] } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
+      console.log('Fetching customers...');
       const { data, error } = await supabase
         .from('customers')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching customers:', error);
+        throw error;
+      }
+      console.log('Customers fetched:', data);
       return data;
     },
   });
@@ -75,13 +80,18 @@ const Customers = () => {
     queryFn: async () => {
       if (!selectedCustomer?.id) return [];
       
+      console.log('Fetching molds for customer:', selectedCustomer.id);
       const { data, error } = await supabase
         .from('molds')
         .select('*')
         .eq('customer_id', selectedCustomer.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching molds:', error);
+        throw error;
+      }
+      console.log('Molds fetched:', data);
       return data;
     },
     enabled: !!selectedCustomer?.id,
@@ -90,13 +100,18 @@ const Customers = () => {
   // Create customer mutation
   const createCustomer = useMutation({
     mutationFn: async (customer: { name: string }) => {
+      console.log('Creating customer:', customer);
       const { data, error } = await supabase
         .from('customers')
         .insert([customer])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating customer:', error);
+        throw error;
+      }
+      console.log('Customer created:', data);
       return data;
     },
     onSuccess: () => {
@@ -106,11 +121,13 @@ const Customers = () => {
         description: "Cliente cadastrado com sucesso",
       });
       setIsCreateOpen(false);
+      setNewCustomer({ name: "" }); // Reset form
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      console.error('Create customer error:', error);
       toast({
         title: "Erro",
-        description: error.message,
+        description: `Erro ao cadastrar cliente: ${error.message}`,
         variant: "destructive",
       });
     },
@@ -119,6 +136,7 @@ const Customers = () => {
   // Update customer mutation
   const updateCustomer = useMutation({
     mutationFn: async (customer: Customer) => {
+      console.log('Updating customer:', customer);
       const { data, error } = await supabase
         .from('customers')
         .update({ name: customer.name })
@@ -126,7 +144,11 @@ const Customers = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating customer:', error);
+        throw error;
+      }
+      console.log('Customer updated:', data);
       return data;
     },
     onSuccess: () => {
@@ -136,11 +158,13 @@ const Customers = () => {
         description: "Cliente atualizado com sucesso",
       });
       setIsEditOpen(false);
+      setEditingCustomer(null); // Reset form
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      console.error('Update customer error:', error);
       toast({
         title: "Erro",
-        description: error.message,
+        description: `Erro ao atualizar cliente: ${error.message}`,
         variant: "destructive",
       });
     },
@@ -149,12 +173,17 @@ const Customers = () => {
   // Delete customer mutation
   const deleteCustomer = useMutation({
     mutationFn: async (id: string) => {
+      console.log('Deleting customer:', id);
       const { error } = await supabase
         .from('customers')
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error deleting customer:', error);
+        throw error;
+      }
+      console.log('Customer deleted successfully');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -164,10 +193,11 @@ const Customers = () => {
       });
       setDeletingCustomer(null);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      console.error('Delete customer error:', error);
       toast({
         title: "Erro",
-        description: error.message,
+        description: `Erro ao excluir cliente: ${error.message}`,
         variant: "destructive",
       });
     },
