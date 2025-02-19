@@ -9,7 +9,62 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      customers: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      molds: {
+        Row: {
+          code: string
+          created_at: string
+          customer_id: string
+          description: string
+          id: string
+          image: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          customer_id: string
+          description: string
+          id?: string
+          image?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          customer_id?: string
+          description?: string
+          id?: string
+          image?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "molds_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
