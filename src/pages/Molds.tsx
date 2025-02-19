@@ -101,6 +101,10 @@ const Molds = () => {
   // Create mold mutation
   const createMold = useMutation({
     mutationFn: async (mold: Omit<Mold, 'id'>) => {
+      if (!mold.code) {
+        throw new Error("O código do molde é obrigatório");
+      }
+
       const { data, error } = await supabase
         .from('molds')
         .insert([mold])
@@ -130,6 +134,10 @@ const Molds = () => {
   // Update mold mutation
   const updateMold = useMutation({
     mutationFn: async (mold: Mold) => {
+      if (!mold.code) {
+        throw new Error("O código do molde é obrigatório");
+      }
+
       const { data, error } = await supabase
         .from('molds')
         .update({
@@ -535,3 +543,4 @@ const Molds = () => {
 };
 
 export default Molds;
+
